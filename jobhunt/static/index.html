@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Radar</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --text: #16181d; --muted: #5d6470; --line: #e3e6eb;
+  --accent: #2f5bea; --accent-ink: #ffffff;
+  --good-bg: #e3f5ec; --good: #0d6b43; --warn-bg: #fdf1dc; --warn: #8a5300; --bad-bg: #fbe5e5; --bad: #a12626;
+  --chip: #eef0f4; --shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111317; --panel: #1a1d23; --text: #e8eaee; --muted: #9aa1ad; --line: #2b2f37;
+    --accent: #7b9bff; --accent-ink: #0d1020;
+    --good-bg: #13342a; --good: #7fd8ac; --warn-bg: #3a2c12; --warn: #f2c26b; --bad-bg: #3d1a1c; --bad: #f19a9a;
+    --chip: #262a32; --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+a { color: var(--accent); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 12px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button:disabled { opacity: .55; cursor: default; }
+button.link { border: 0; background: none; padding: 0; color: var(--accent); }
+input[type=text], input[type=number], input[type=time], input[type=email], select, textarea {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; width: 100%;
+}
+textarea { min-height: 90px; resize: vertical; }
+header { position: sticky; top: 0; z-index: 5; background: var(--panel); border-bottom: 1px solid var(--line); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+.top { display: flex; gap: 12px; align-items: center; padding: 12px 0; flex-wrap: wrap; }
+.top h1 { font-size: 18px; margin: 0; margin-right: auto; }
+.status { color: var(--muted); font-size: 13px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; vertical-align: 1px; }
+.dot.on { background: #1fa463; animation: pulse 1.2s infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+nav { display: flex; gap: 2px; overflow-x: auto; }
+nav button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 8px 12px; color: var(--muted); white-space: nowrap; }
+nav button.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
+.count { font-size: 12px; background: var(--chip); border-radius: 10px; padding: 0 7px; margin-left: 4px; }
+main { padding: 20px 0 60px; }
+main > p:first-child { margin-top: 0; }
+.toolbar { display: grid; grid-template-columns: 2fr repeat(5, 1fr); gap: 8px; margin-bottom: 14px; }
+@media (max-width: 760px) { .toolbar { grid-template-columns: 1fr 1fr; } .toolbar .search { grid-column: 1 / -1; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; box-shadow: var(--shadow); }
+.card-head { display: flex; gap: 12px; align-items: flex-start; }
+.score { flex: none; width: 46px; height: 46px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 17px; background: var(--chip); }
+.score.s-hi { background: var(--good-bg); color: var(--good); }
+.score.s-mid { background: var(--warn-bg); color: var(--warn); }
+.title { font-weight: 650; font-size: 15px; }
+.title a { color: var(--text); text-decoration: none; }
+.title a:hover { text-decoration: underline; }
+.sub { color: var(--muted); font-size: 13px; }
+.actions { margin-left: auto; display: flex; gap: 6px; flex: none; }
+.actions button { padding: 4px 9px; font-size: 12px; }
+.actions button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
+.chip { font-size: 12px; background: var(--chip); border-radius: 6px; padding: 2px 8px; }
+.chip.good { background: var(--good-bg); color: var(--good); }
+.chip.warn { background: var(--warn-bg); color: var(--warn); }
+.chip.bad { background: var(--bad-bg); color: var(--bad); }
+.headline { font-weight: 550; margin-top: 4px; }
+details { margin-top: 6px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+@media (max-width: 700px) { .grid2 { grid-template-columns: 1fr; } .actions { flex-wrap: wrap; } }
+.grid2 h4, .section h4 { margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.grid2 ul { margin: 0; padding-left: 18px; }
+.desc { white-space: pre-wrap; font-size: 13px; background: var(--bg); border-radius: 8px; padding: 10px; max-height: 420px; overflow: auto; margin-top: 8px; }
+.empty { text-align: center; color: var(--muted); padding: 50px 10px; }
+.reason { color: var(--bad); font-size: 13px; }
+.section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+.section > h3 { margin: 0 0 12px; font-size: 15px; }
+.field { margin-bottom: 14px; }
+.field > label { display: block; font-weight: 600; margin-bottom: 4px; }
+.help { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.check { display: flex; gap: 8px; align-items: center; font-weight: 400 !important; }
+.places { border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.places .picked { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.places .picked .chip button { border: 0; background: none; padding: 0 0 0 4px; color: inherit; }
+.places .list { max-height: 220px; overflow: auto; columns: 3 180px; margin-top: 8px; }
+.places .list label { display: flex; gap: 6px; align-items: center; break-inside: avoid; padding: 2px 0; font-weight: 400; }
+.places .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.places .tools input { flex: 1; min-width: 160px; }
+.estimate { font-size: 12px; margin-top: 6px; }
+.estimate.warn { color: var(--warn); }
+.savebar { position: sticky; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 0; display: flex; gap: 10px; align-items: center; }
+#log { position: fixed; right: 16px; bottom: 16px; width: min(640px, calc(100vw - 32px)); max-height: 55vh; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.18); display: none; flex-direction: column; z-index: 10; }
+#log.open { display: flex; }
+#log .bar { display: flex; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 600; }
+#log pre { margin: 0; padding: 10px 12px; overflow: auto; font-size: 12px; white-space: pre-wrap; }
+#toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 8px; display: none; z-index: 20; }
+.muted { color: var(--muted); }
+.kbd { font-family: ui-monospace, Menlo, monospace; background: var(--chip); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="top">
+      <h1 id="appName">Job Radar</h1>
+      <span class="status" id="status"><span class="dot"></span>Loading…</span>
+      <button id="logBtn">Log</button>
+      <button class="primary" id="runBtn">Search now</button>
+    </div>
+    <nav id="tabs"></nav>
+  </div>
+</header>
+<main class="wrap" id="main"></main>
+<div id="log"><div class="bar"><span>Run log</span><button class="link" id="logClose">Close</button></div><pre id="logText"></pre></div>
+<div id="toast"></div>
+
+<script>
+const $ = (sel, el = document) => el.querySelector(sel);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const api = {
+  get: (path) => fetch(path).then((r) => r.json()),
+  post: async (path, body, contentType = "application/json") => {
+    const r = await fetch(path, {
+      method: "POST",
+      headers: { "X-Jobhunt": "1", "Content-Type": contentType },
+      body: contentType === "application/json" ? JSON.stringify(body ?? {}) : body,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    return data;
+  },
+};
+
+let S = null;          // server state
+let JOBS = [];
+let draft = null;      // settings being edited
+const TAB_KEYS = ["matches", "waiting", "excluded", "tracked", "settings", "cv"];
+let tab = TAB_KEYS.includes(location.hash.slice(1)) ? location.hash.slice(1) : (localStorage.getItem("tab") || "matches");
+let filters = { q: "", min: "0", elig: "all", focus: "all", source: "all", sort: "score", showTitle: false };
+let wasRunning = false;
+const openDetails = new Set();
+
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.style.display = "block";
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => (t.style.display = "none"), 3500);
+}
+
+function ago(iso) {
+  if (!iso) return "never";
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  if (m < 1440) return `${Math.round(m / 60)} h ago`;
+  return `${Math.round(m / 1440)} d ago`;
+}
+function until(iso) {
+  const m = Math.round((new Date(iso) - Date.now()) / 60000);
+  return m <= 0 ? "due now" : m < 60 ? `in ${m} min` : `in ${Math.round(m / 60)} h`;
+}
+
+// ---------- data ----------
+async function loadState() {
+  S = await api.get("/api/state");
+  if (!draft) draft = structuredClone(S.settings);
+  document.title = S.settings.ui.app_name || "Job Radar";
+  $("#appName").textContent = document.title;
+  renderStatus();
+  if (wasRunning && !S.running) { await loadJobs(); toast("Search finished"); }
+  wasRunning = S.running;
+}
+async function loadJobs() {
+  JOBS = (await api.get("/api/jobs")).jobs;
+  render();
+}
+
+function renderStatus() {
+  const lr = S.last_run;
+  let text;
+  if (S.running) text = `<span class="dot on"></span>Searching… ${esc(S.log.at(-1)?.slice(9) || "")}`;
+  else if (lr) {
+    const st = lr.stats ? `${lr.stats.new} new, ${lr.stats.assessed} scored` : "";
+    text = `<span class="dot"></span>Last search ${ago(lr.started_at)}${st ? " · " + st : ""}` +
+      (S.next_run ? ` · next ${until(S.next_run)}` : " · schedule off");
+  } else text = `<span class="dot"></span>No searches yet`;
+  $("#status").innerHTML = text;
+  $("#runBtn").disabled = S.running;
+  $("#logText").textContent = S.log.join("\n") || "No log for this session yet.";
+  const pre = $("#logText"); pre.scrollTop = pre.scrollHeight;
+}
+
+// ---------- grouping ----------
+const isHidden = (j) => j.user_status === "hidden";
+const groups = {
+  matches: (j) => j.eval.status === "match" && j.assess && !isHidden(j),
+  waiting: (j) => !isHidden(j) && ((j.eval.status === "match" && !j.assess) || (j.eval.status === "pending" && j.prefilter === "ok")),
+  excluded: (j) => j.eval.status === "excluded" && !isHidden(j),
+  tracked: (j) => ["saved", "applied", "hidden"].includes(j.user_status),
+};
+const TABS = [
+  ["matches", "Matches"], ["waiting", "Not scored yet"], ["excluded", "Filtered out"],
+  ["tracked", "Saved & applied"], ["settings", "Settings"], ["cv", "CV & profile"],
+];
+
+function renderTabs() {
+  $("#tabs").innerHTML = TABS.map(([key, label]) => {
+    const n = groups[key] ? JOBS.filter(groups[key]).filter((j) => key !== "excluded" || filters.showTitle || j.prefilter === "ok").length : null;
+    return `<button data-tab="${key}" class="${tab === key ? "active" : ""}">${label}${n !== null ? `<span class="count">${n}</span>` : ""}</button>`;
+  }).join("");
+}
+
+function render() {
+  renderTabs();
+  const main = $("#main");
+  if (tab === "settings") return renderSettings(main);
+  if (tab === "cv") return renderCv(main);
+  renderJobs(main);
+}
+
+// ---------- job lists ----------
+function chip(text, kind = "") {
+  if (!text) return "";
+  const short = text.length > 70 ? text.slice(0, 67) + "…" : text;
+  return `<span class="chip ${kind}" title="${esc(text)}">${esc(short)}</span>`;
+}
+const ELIG = {
+  yes: ["Open to Egypt", "good"], likely: ["Likely open to Egypt", "good"], unclear: ["Egypt: unclear", "warn"],
+  unlikely: ["Egypt: unlikely", "bad"], no: ["Not open to Egypt", "bad"],
+};
+const FOCUS_KIND = { android: "good", ios: "bad" };
+
+function jobChips(j) {
+  const s = j.screen;
+  if (!s) return chip(j.location) + chip(j.salary_text);
+  const [eLabel, eKind] = ELIG[s.egypt_eligible] || ["Egypt: ?", "warn"];
+  const tz = j.eval.tz;
+  const tzKind = tz ? { yes: "good", no: "bad", unclear: "warn" }[tz[0]] : "";
+  const pay = s.pay_text || j.salary_text;
+  const payKind = (j.eval.flags || []).some((f) => f.startsWith("pay")) ? "warn" : "";
+  return [
+    chip(eLabel, eKind),
+    tz ? chip("Hours: " + tz[1], tzKind) : "",
+    chip(s.remote_type),
+    chip(s.engagement),
+    chip(pay ? pay : "pay not stated", payKind),
+    chip(s.role_focus, FOCUS_KIND[s.role_focus] || ""),
+    chip(s.seniority),
+    ...(s.industries || []).filter((x) => x !== "other").map((x) => chip(x, (S.settings.fit.exclude_industries || []).includes(x) ? "bad" : "")),
+  ].join("");
+}
+
+function actions(j) {
+  const b = (status, label) => `<button data-status="${status}" data-id="${esc(j.id)}" class="${j.user_status === status ? "on" : ""}">${label}</button>`;
+  return `<div class="actions">${b("saved", "Save")}${b("applied", "Applied")}${b("hidden", "Hide")}<button data-block="${esc(j.company)}" title="Never show jobs from this company">Block company</button></div>`;
+}
+
+function jobCard(j) {
+  const a = j.assess;
+  const score = a ? a.fit_score : "–";
+  const cls = a ? (a.fit_score >= 80 ? "s-hi" : a.fit_score >= 65 ? "s-mid" : "") : "";
+  const src = j.source === "himalayas" ? "via Himalayas" : "LinkedIn";
+  const posted = j.posted_date ? `posted ${esc(j.posted_date)}` : "";
+  const reasons = j.eval.status === "excluded" ? `<div class="reason">${j.eval.reasons.map(esc).join(" · ")}</div>` : "";
+  let body = "";
+  if (a) {
+    const list = (items) => items && items.length ? `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : `<span class="muted">—</span>`;
+    body = `<div class="headline">${esc(a.headline)}</div>
+      <details data-id="${esc(j.id)}" ${openDetails.has(j.id) ? "open" : ""}><summary>Details</summary>
+        <p>${esc(a.summary)}</p>
+        <div class="grid2">
+          <div><h4>You match</h4>${list(a.matched)}</div>
+          <div><h4>Gaps</h4>${list(a.gaps)}</div>
+          <div><h4>Red flags</h4>${list(a.red_flags)}</div>
+          <div><h4>Tip</h4>${esc(a.apply_tip)}<h4 style="margin-top:10px">Interview risk</h4>${esc(a.interview_risk)}</div>
+        </div>
+        ${detailFacts(j)}
+        <button class="link" data-desc="${esc(j.id)}">Show full listing</button><div class="desc-slot"></div>
+      </details>`;
+  } else if (j.screen) {
+    body = `<details data-id="${esc(j.id)}" ${openDetails.has(j.id) ? "open" : ""}><summary>Details</summary>${detailFacts(j)}
+      <button class="link" data-desc="${esc(j.id)}">Show full listing</button><div class="desc-slot"></div></details>`;
+  }
+  return `<div class="card">
+    <div class="card-head">
+      <div class="score ${cls}">${score}</div>
+      <div style="min-width:0">
+        <div class="title"><a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a></div>
+        <div class="sub">${esc(j.company)} · ${esc(j.detail_location || j.location)} · ${posted} · ${src}${j.applicants ? " · " + esc(j.applicants) : ""}</div>
+      </div>
+      ${actions(j)}
+    </div>
+    <div class="chips">${jobChips(j)}</div>
+    ${reasons}${body}
+  </div>`;
+}
+
+function detailFacts(j) {
+  const s = j.screen; if (!s) return "";
+  return `<div class="grid2">
+    <div><h4>Who can apply</h4>${esc(s.eligibility_evidence || "—")}</div>
+    <div><h4>Working hours</h4>${esc(s.tz_text || "No requirement stated")}</div>
+  </div>`;
+}
+
+function renderJobs(main) {
+  let list = JOBS.filter(groups[tab]);
+  if (tab === "excluded" && !filters.showTitle) list = list.filter((j) => j.prefilter === "ok");
+  const q = filters.q.trim().toLowerCase();
+  if (q) list = list.filter((j) => `${j.title} ${j.company} ${j.location} ${j.assess?.headline || ""}`.toLowerCase().includes(q));
+  if (tab === "matches") list = list.filter((j) => j.assess.fit_score >= Number(filters.min));
+  if (filters.elig !== "all") list = list.filter((j) => filters.elig === "yes" ? ["yes", "likely"].includes(j.screen?.egypt_eligible) : j.screen?.egypt_eligible === filters.elig);
+  if (filters.focus !== "all") list = list.filter((j) => j.screen?.role_focus === filters.focus);
+  if (filters.source !== "all") list = list.filter((j) => (j.source || "linkedin") === filters.source);
+  list.sort(filters.sort === "score"
+    ? (a, b) => (b.assess?.fit_score ?? -1) - (a.assess?.fit_score ?? -1) || (b.posted_date || "").localeCompare(a.posted_date || "")
+    : (a, b) => (b.posted_date || "").localeCompare(a.posted_date || "") || (b.first_seen || "").localeCompare(a.first_seen || ""));
+
+  const opt = (name, options) => `<select data-filter="${name}">${options.map(([v, l]) => `<option value="${v}" ${filters[name] === v ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  const toolbar = `<div class="toolbar">
+    <input class="search" type="text" data-filter="q" placeholder="Search title, company…" value="${esc(filters.q)}">
+    ${opt("min", [["0", "Any score"], ["50", "Score 50+"], ["65", "Score 65+"], ["75", "Score 75+"], ["85", "Score 85+"]])}
+    ${opt("elig", [["all", "Any eligibility"], ["yes", "Open to Egypt"], ["unclear", "Unclear"], ["unlikely", "Unlikely"], ["no", "Not open"]])}
+    ${opt("focus", [["all", "Any focus"], ["android", "Android"], ["cross-platform-native", "Android + iOS"], ["react-native", "React Native"], ["flutter", "Flutter"], ["mobile-general", "Mobile (general)"], ["ios", "iOS"]])}
+    ${opt("source", [["all", "All sources"], ["linkedin", "LinkedIn"], ["himalayas", "Himalayas"]])}
+    ${opt("sort", [["score", "Best fit first"], ["new", "Newest first"]])}
+  </div>`;
+  const extra = tab === "excluded"
+    ? `<label class="check" style="margin:-4px 0 12px"><input type="checkbox" data-filter="showTitle" ${filters.showTitle ? "checked" : ""}> Also show jobs skipped by title alone (not read by Claude)</label>` : "";
+  const intro = {
+    matches: "Jobs that pass every rule in Settings, scored by Claude against your CV.",
+    waiting: "Pass your rules so far but Claude hasn't finished reading or scoring them. The next search picks them up.",
+    excluded: "Filtered out by your rules. Each card says why. Loosen a rule in Settings and they come back without re-reading.",
+    tracked: "Jobs you saved, applied to, or hid.",
+  }[tab];
+  const cards = list.slice(0, 300).map(jobCard).join("");
+  main.innerHTML = `<p class="muted" style="margin-top:0">${intro}</p>${toolbar}${extra}` +
+    (cards || `<div class="empty">${S?.running ? "Searching… results appear here as they're scored." : "Nothing here yet."}</div>`) +
+    (list.length > 300 ? `<p class="muted">Showing 300 of ${list.length}. Narrow the filters to see more.</p>` : "");
+}
+
+// ---------- settings ----------
+const get = (obj, path) => path.split(".").reduce((o, k) => o?.[k], obj);
+const set = (obj, path, value) => { const keys = path.split("."); const last = keys.pop(); keys.reduce((o, k) => o[k], obj)[last] = value; };
+
+const SECTIONS = [
+  ["What to search", [
+    { key: "search.terms", type: "lines", label: "Job titles", help: "One per line. Each title is searched in every place below." },
+    { key: "search.locations", type: "places", label: "Places to search" },
+    { key: "search.add_remote_keyword", type: "bool", label: "Add “remote” to every LinkedIn search", help: "LinkedIn ignores its remote filter for logged-out searches, so this keyword is what tilts results toward remote jobs." },
+    { row: [
+      { key: "search.first_run_days", type: "number", label: "First search looks back (days)" },
+      { key: "search.max_pages", type: "number", label: "Pages per search (10 jobs each)", help: "Used on the first search; later searches read 1–2 pages since they only need new jobs." },
+    ] },
+    { key: "search.include_ios_only_titles", type: "bool", label: "Include iOS-only job titles" },
+    { key: "search.title_must_match", type: "text", label: "Title must contain (regular expression)", help: "Titles that don't match are skipped without spending a LinkedIn request or Claude call." },
+    { key: "search.title_exclude", type: "text", label: "Skip titles containing (regular expression)" },
+  ]],
+  ["Sources", [
+    { key: "sources.linkedin", type: "bool", label: "LinkedIn (logged out — never touches your account)" },
+    { key: "sources.himalayas", type: "bool", label: "Himalayas remote-jobs feed (free; tags which countries can apply)" },
+    { key: "sources.himalayas_country", type: "text", label: "Himalayas: only jobs open to this country" },
+  ]],
+  ["Fit rules", [
+    { row: [
+      { key: "fit.work_window_start", type: "time", label: "Earliest start (Cairo time)" },
+      { key: "fit.work_window_end", type: "time", label: "Latest finish (Cairo time)", help: "00:00 = midnight, which covers a full US Eastern day. 03:00 covers a full Pacific day." },
+      { key: "fit.unclear_timezone", type: "select", label: "Hours requirement unclear", options: [["keep", "Keep the job"], ["drop", "Filter it out"]] },
+    ] },
+    { key: "fit.engagement", type: "multi", label: "Engagement types you accept", options: [["full-time", "Full-time (incl. via employer-of-record)"], ["contract", "Contract / B2B"], ["part-time", "Part-time"]] },
+    { row: [
+      { key: "fit.min_pay_usd_year", type: "number", label: "Minimum pay (USD per year)", help: "Hourly pay is compared as × 2000 hours. Listings that don't state pay are kept." },
+      { key: "fit.below_min_pay", type: "select", label: "When listed pay is below that", options: [["drop", "Filter it out"], ["flag", "Keep, but flag it"]] },
+    ] },
+    { key: "fit.exclude_industries", type: "multi", label: "Skip these industries", help: "Claude tags each employer's industry when it reads the listing.", options: [
+      ["fintech", "Fintech (payments, lending, trading)"], ["banking", "Banks"], ["crypto", "Crypto / web3"], ["dating", "Dating"],
+      ["gambling", "Gambling / betting"], ["adtech", "Ad-tech"], ["defense", "Defense"], ["insurance", "Insurance"],
+      ["outsourcing-agency", "Outsourcing agencies / body-shops"]] },
+    { key: "fit.exclude_role_focus", type: "multi", label: "Skip roles whose main stack is", help: "Native Android roles that list these as a plus are kept.", options: [
+      ["react-native", "React Native"], ["flutter", "Flutter"], ["ios", "iOS"], ["cross-platform-native", "Native iOS + Android equally"]] },
+    { key: "fit.blocked_companies", type: "lines", label: "Blocked companies", help: "One per line. Also use “Block company” on any job card." },
+    { row: [
+      { key: "fit.min_eligibility", type: "select", label: "Show jobs where working from Egypt is at least", options: [["yes", "Yes — explicitly open"], ["likely", "Likely"], ["unclear", "Unclear"], ["unlikely", "Unlikely (US-posted, no restriction stated)"], ["no", "Show everything"]] },
+      { key: "fit.email_min_score", type: "number", label: "Email me jobs scoring at least" },
+    ] },
+  ]],
+  ["Schedule", [
+    { key: "schedule.enabled", type: "bool", label: "Search automatically" },
+    { row: [
+      { key: "schedule.interval_minutes", type: "number", label: "Every (minutes)" },
+      { key: "schedule.run_on_open_after_minutes", type: "number", label: "Opening this page searches if the last search is older than (minutes)" },
+    ] },
+  ]],
+  ["Email alerts", [
+    { key: "email", type: "email-status" },
+    { row: [
+      { key: "email.to", type: "email", label: "Send alerts to" },
+      { key: "email.smtp_user", type: "email", label: "Send from (Gmail address)" },
+    ] },
+  ]],
+  ["Claude scoring", [
+    { row: [
+      { key: "scoring.screen_model", type: "select", label: "Reading model (every listing)", options: [["haiku", "Haiku (fast)"], ["sonnet", "Sonnet"], ["opus", "Opus"]] },
+      { key: "scoring.screen_effort", type: "select", label: "Reading effort", options: [["low", "Low"], ["medium", "Medium"], ["high", "High"]] },
+      { key: "scoring.assess_model", type: "select", label: "Scoring model (jobs that pass rules)", options: [["haiku", "Haiku"], ["sonnet", "Sonnet"], ["opus", "Opus"]] },
+      { key: "scoring.assess_effort", type: "select", label: "Scoring effort", options: [["low", "Low"], ["medium", "Medium"], ["high", "High"]] },
+      { key: "scoring.concurrency", type: "number", label: "Claude calls in parallel" },
+    ] },
+  ]],
+  ["Branding", [{ key: "ui.app_name", type: "text", label: "App name" }]],
+];
+
+function fieldHtml(f) {
+  if (f.row) return `<div class="row">${f.row.map(fieldHtml).join("")}</div>`;
+  const v = get(draft, f.key);
+  const help = f.help ? `<div class="help">${esc(f.help)}</div>` : "";
+  const id = `f-${f.key}`;
+  switch (f.type) {
+    case "bool":
+      return `<div class="field"><label class="check"><input type="checkbox" data-key="${f.key}" ${v ? "checked" : ""}> ${esc(f.label)}</label>${help}</div>`;
+    case "lines":
+      return `<div class="field"><label for="${id}">${esc(f.label)}</label><textarea id="${id}" data-key="${f.key}" data-type="lines">${esc((v || []).join("\n"))}</textarea>${help}</div>`;
+    case "select":
+      return `<div class="field"><label for="${id}">${esc(f.label)}</label><select id="${id}" data-key="${f.key}">${f.options.map(([o, l]) => `<option value="${o}" ${v === o ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>${help}</div>`;
+    case "multi":
+      return `<div class="field"><label>${esc(f.label)}</label>${f.options.map(([o, l]) => `<label class="check"><input type="checkbox" data-multi="${f.key}" value="${o}" ${(v || []).includes(o) ? "checked" : ""}> ${esc(l)}</label>`).join("")}${help}</div>`;
+    case "places": return placesHtml(f);
+    case "email-status":
+      return `<div class="field">${S.email_ready
+        ? `<span class="chip good">Ready</span> <button id="testEmail">Send test email</button>`
+        : `<span class="chip warn">Not set up</span><div class="help">Email needs a Gmail app password, kept in your Mac's Keychain (never in a file). Create one at <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>, then run this in Terminal from the project folder: <span class="kbd">uv run python -m jobhunt email-setup</span>. Until then you get Mac notifications.</div>`}</div>`;
+    default:
+      return `<div class="field"><label for="${id}">${esc(f.label)}</label><input id="${id}" type="${f.type === "number" ? "number" : f.type === "time" ? "time" : f.type === "email" ? "email" : "text"}" data-key="${f.key}" data-type="${f.type}" value="${esc(v)}">${help}</div>`;
+  }
+}
+
+let placeQuery = "";
+function placesHtml(f) {
+  const picked = draft.search.locations;
+  const all = [...S.places.regions, ...S.places.countries];
+  const q = placeQuery.toLowerCase();
+  const shown = all.filter((p) => !q || p.toLowerCase().includes(q));
+  return `<div class="field"><label>${esc(f.label)}</label><div class="places">
+    <div class="picked">${picked.map((p) => `<span class="chip">${esc(p)}<button data-unpick="${esc(p)}" aria-label="Remove ${esc(p)}">×</button></span>`).join("") || `<span class="muted">Nothing selected</span>`}</div>
+    <div class="tools">
+      <input type="text" id="placeSearch" placeholder="Filter ${all.length} places…" value="${esc(placeQuery)}">
+      <button data-places="all">All countries</button><button data-places="clear">Clear</button>
+    </div>
+    <div class="list">${shown.map((p, i) => `<label><input type="checkbox" data-place="${esc(p)}" ${picked.includes(p) ? "checked" : ""}> ${esc(p)}${i < S.places.regions.length && !q ? " <span class='muted'>(region)</span>" : ""}</label>`).join("")}</div>
+  </div>${estimateHtml()}<div class="help">“Worldwide” covers every country in one search per title, but only its first few pages. Picking countries one by one searches each separately — deeper, but slower.</div></div>`;
+}
+
+function estimateHtml() {
+  if (!draft.sources.linkedin) return "";
+  const searches = draft.search.terms.length * draft.search.locations.length;
+  const minutes = Math.ceil((searches * 5.5) / 60);
+  const firstMinutes = Math.ceil((searches * Math.max(1, draft.search.max_pages) * 5.5) / 60);
+  const interval = Number(draft.schedule.interval_minutes) || 30;
+  const tooSlow = minutes > interval * 0.8;
+  return `<div class="estimate ${tooSlow ? "warn" : ""}">${searches} LinkedIn searches per run — about ${minutes} min each run at a polite pace (first run up to ~${firstMinutes} min, plus reading new listings).
+    ${tooSlow ? `That's longer than your ${interval}-minute schedule: pick fewer places or titles, or search less often. LinkedIn slows down IPs that search too much.` : ""}</div>`;
+}
+
+function renderSettings(main) {
+  main.innerHTML = SECTIONS.map(([title, fields]) => `<div class="section"><h3>${esc(title)}</h3>${fields.map(fieldHtml).join("")}</div>`).join("") +
+    `<div class="savebar"><button class="primary" id="saveSettings">Save settings</button><button id="resetSettings">Discard changes</button><span class="muted">Rule changes apply instantly; search changes apply from the next search.</span></div>`;
+}
+
+function renderCv(main) {
+  const p = draft.profile;
+  const area = (key, label, help) => `<div class="field"><label>${esc(label)}</label><textarea data-key="profile.${key}">${esc(p[key])}</textarea>${help ? `<div class="help">${esc(help)}</div>` : ""}</div>`;
+  main.innerHTML = `<div class="section"><h3>CV</h3>
+      <div class="field"><label>Upload a new CV (PDF)</label><input type="file" id="cvFile" accept="application/pdf"></div>
+      <div class="field"><label>CV text Claude reads</label><textarea id="cvText" style="min-height:260px">${esc(S.cv_text)}</textarea>
+      <div class="help">${S.cv_text.length.toLocaleString()} characters. Edit and save to correct anything the PDF reader got wrong. Changing the CV or profile re-scores matches on the next search.</div></div>
+      <button id="saveCv">Save CV text</button></div>
+    <div class="section"><h3>About you (Claude uses this when scoring)</h3>
+      ${area("based_in", "Where you live")}${area("citizenship", "Citizenship")}${area("goal", "What you're looking for")}
+      ${area("primary_skills", "Main strengths")}${area("secondary_skills", "Secondary skills")}
+      ${area("rusty_skills", "Rusty skills", "Roles that lean on these score lower and show a higher interview risk.")}
+      ${area("notes", "Anything else", "e.g. industries to avoid, companies you've already applied to, visa notes.")}
+    </div>
+    <div class="savebar"><button class="primary" id="saveSettings">Save profile</button></div>`;
+}
+
+// ---------- events ----------
+document.addEventListener("click", async (e) => {
+  const t = e.target.closest("button, [data-tab]");
+  if (!t) return;
+  if (t.dataset.tab) { tab = t.dataset.tab; localStorage.setItem("tab", tab); history.replaceState(null, "", "#" + tab); return render(); }
+  if (t.id === "runBtn") { const r = await api.post("/api/run"); toast(r.started ? "Search started" : "A search is already running"); return loadState(); }
+  if (t.id === "logBtn") return $("#log").classList.toggle("open");
+  if (t.id === "logClose") return $("#log").classList.remove("open");
+  if (t.dataset.status) {
+    const job = JOBS.find((j) => j.id === t.dataset.id);
+    const status = job.user_status === t.dataset.status ? "" : t.dataset.status;
+    await api.post("/api/job_status", { id: job.id, status });
+    job.user_status = status; return render();
+  }
+  if (t.dataset.desc) {
+    const slot = t.nextElementSibling;
+    if (slot.innerHTML) { slot.innerHTML = ""; t.textContent = "Show full listing"; return; }
+    const d = await api.get(`/api/job?id=${encodeURIComponent(t.dataset.desc)}`);
+    slot.innerHTML = `<div class="desc">${esc(d.description)}</div>`; t.textContent = "Hide full listing"; return;
+  }
+  if (t.dataset.block) {
+    const saved = await api.post("/api/block_company", { company: t.dataset.block });
+    draft = structuredClone(saved); await loadState(); await loadJobs();
+    return toast(`Blocked ${t.dataset.block}`);
+  }
+  if (t.dataset.unpick) { draft.search.locations = draft.search.locations.filter((p) => p !== t.dataset.unpick); return render(); }
+  if (t.dataset.places === "all") { draft.search.locations = [...S.places.countries]; return render(); }
+  if (t.dataset.places === "clear") { draft.search.locations = []; return render(); }
+  if (t.id === "saveSettings") {
+    try { const saved = await api.post("/api/settings", draft); draft = structuredClone(saved); await loadState(); await loadJobs(); toast("Saved"); }
+    catch (err) { toast("Couldn't save: " + err.message); }
+    return;
+  }
+  if (t.id === "resetSettings") { draft = structuredClone(S.settings); return render(); }
+  if (t.id === "saveCv") {
+    try { await api.post("/api/cv_text", { text: $("#cvText").value }); await loadState(); toast("CV saved"); render(); }
+    catch (err) { toast(err.message); }
+    return;
+  }
+  if (t.id === "testEmail") {
+    try { await api.post("/api/test_email"); toast("Test email sent"); } catch (err) { toast("Email failed: " + err.message); }
+  }
+});
+
+document.addEventListener("toggle", (e) => {
+  const d = e.target; if (d.tagName !== "DETAILS" || !d.dataset.id) return;
+  d.open ? openDetails.add(d.dataset.id) : openDetails.delete(d.dataset.id);
+}, true);
+
+document.addEventListener("input", (e) => {
+  const el = e.target;
+  if (el.dataset.filter === "q") { filters.q = el.value; const pos = el.selectionStart; renderJobs($("#main")); const n = $("[data-filter=q]"); n.focus(); n.setSelectionRange(pos, pos); return; }
+  if (el.id === "placeSearch") { placeQuery = el.value; render(); const n = $("#placeSearch"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); return; }
+});
+
+document.addEventListener("change", async (e) => {
+  const el = e.target;
+  if (el.dataset.filter) { filters[el.dataset.filter] = el.type === "checkbox" ? el.checked : el.value; return render(); }
+  if (el.dataset.place) {
+    const p = el.dataset.place; const list = draft.search.locations;
+    draft.search.locations = el.checked ? [...list, p] : list.filter((x) => x !== p); return render();
+  }
+  if (el.dataset.multi) {
+    const cur = new Set(get(draft, el.dataset.multi)); el.checked ? cur.add(el.value) : cur.delete(el.value);
+    set(draft, el.dataset.multi, [...cur]); return;
+  }
+  if (el.id === "cvFile" && el.files[0]) {
+    try { const r = await api.post("/api/cv", el.files[0], "application/pdf"); toast(`CV loaded (${r.chars} characters)`); await loadState(); render(); }
+    catch (err) { toast("Couldn't read that PDF: " + err.message); }
+    return;
+  }
+  if (el.dataset.key) {
+    let v = el.type === "checkbox" ? el.checked : el.value;
+    if (el.dataset.type === "number") v = Number(v);
+    if (el.dataset.type === "lines") v = v.split("\n").map((s) => s.trim()).filter(Boolean);
+    set(draft, el.dataset.key, v);
+    if (el.dataset.key.startsWith("search.") || el.dataset.key === "schedule.interval_minutes") render();
+  }
+});
+
+// ---------- start ----------
+(async function start() {
+  await loadState();
+  await loadJobs();
+  api.post("/api/open").then((r) => { if (r.started) { toast("Your last search was a while ago — searching now"); loadState(); } });
+  let tick = 0;
+  setInterval(async () => {
+    tick++;
+    if (S.running || tick % 6 === 0) await loadState();
+    if (S.running && tick % 5 === 0) await loadJobs();
+  }, 3000);
+})();
+</script>
+</body>
+</html>
