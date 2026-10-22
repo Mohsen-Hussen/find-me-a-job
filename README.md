@@ -15,6 +15,8 @@ uv run python -m jobhunt email-setup   # Gmail app password → macOS Keychain
 
 Everything else (titles, places, hours, pay, engagement, schedule, models) is in the dashboard's **Settings** tab.
 
+**Setting it up for yourself?** It's currently built for one person in Egypt, on a Mac. Ask Claude Code to follow [docs/setup-runbook.md](docs/setup-runbook.md): it interviews you, makes the code generic, and gets it running on your OS.
+
 ## How a run works
 
 1. **Search.** LinkedIn's logged-out job search covers every title × place. It searches back to the last run plus an hour of overlap; the first run searches back 7 days. Himalayas' free API returns remote jobs open to Egypt. No LinkedIn login is used, so your account is never involved.
