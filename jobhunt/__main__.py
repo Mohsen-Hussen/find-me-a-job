@@ -90,11 +90,15 @@ def _install_mac(uv: str, root: Path) -> None:
     print(f"Installed {MAC_PLIST}. Dashboard: http://localhost:8765 (starts at login, searches on schedule).")
 
 
+def _win_startup_dir() -> Path:
+    return Path(os.environ["APPDATA"]) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+
+
 def _install_windows(uv: str, root: Path) -> None:
     data = settings_mod.DATA
     data.mkdir(exist_ok=True)
     log = data / "server.log"
-    # A .bat runs the server; a .vbs launches the .bat with no console window.
+    # A .bat runs the server; a .vbs launches it with no console window.
     bat = data / "serve.bat"
     bat.write_text(
         "@echo off\r\n"
@@ -103,15 +107,17 @@ def _install_windows(uv: str, root: Path) -> None:
     )
     vbs = data / "serve.vbs"
     vbs.write_text(f'CreateObject("Wscript.Shell").Run "cmd /c ""{bat}""", 0, False\r\n')
-    # Logon task so it starts whenever this user signs in.
-    subprocess.run(
-        ["schtasks", "/Create", "/TN", WIN_TASK, "/SC", "ONLOGON", "/RL", "LIMITED",
-         "/TR", f'wscript "{vbs}"', "/F"],
-        check=True, capture_output=True, text=True,
+    # A Startup-folder entry runs it at login without admin rights (Task
+    # Scheduler registration needs elevation). The dashboard's own scheduler
+    # then runs a search every 30 minutes.
+    startup = _win_startup_dir()
+    startup.mkdir(parents=True, exist_ok=True)
+    (startup / "JobRadar.vbs").write_text(
+        f'CreateObject("Wscript.Shell").Run "wscript ""{vbs}""", 0, False\r\n'
     )
-    subprocess.run(["schtasks", "/Run", "/TN", WIN_TASK], capture_output=True, text=True)
-    print(f"Installed Task Scheduler task '{WIN_TASK}' (starts at login) and started it now.")
-    print("Dashboard: http://localhost:8765")
+    subprocess.Popen(["wscript", str(vbs)], cwd=str(root))  # start it now
+    print(f"Added Job Radar to your Startup folder ({startup / 'JobRadar.vbs'}) and started it now.")
+    print("It starts automatically at login. Dashboard: http://localhost:8765")
 
 
 def _install_linux(uv: str, root: Path) -> None:
@@ -150,10 +156,10 @@ def _uninstall_mac() -> None:
 
 
 def _uninstall_windows() -> None:
-    subprocess.run(["schtasks", "/End", "/TN", WIN_TASK], capture_output=True, text=True)
-    subprocess.run(["schtasks", "/Delete", "/TN", WIN_TASK, "/F"], capture_output=True, text=True)
-    for leftover in ("serve.bat", "serve.vbs"):
+    (_win_startup_dir() / "JobRadar.vbs").unlink(missing_ok=True)
+    for leftover in ("serve.bat", "serve.vbs", "jobradar_task.xml"):
         (settings_mod.DATA / leftover).unlink(missing_ok=True)
+    print("Note: a dashboard already running stays up until you close it or sign out.")
 
 
 def _uninstall_linux() -> None:
