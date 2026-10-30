@@ -1,28 +1,33 @@
-"""Alerts: email (Gmail SMTP, app password kept in the macOS Keychain) + Mac notification."""
+"""Alerts: email (Gmail SMTP, app password kept in the OS credential store) + desktop notification.
+
+The password is stored with `keyring`, which maps to the Windows Credential
+Manager, the macOS Keychain, or the Secret Service on Linux.
+"""
 
 from __future__ import annotations
 
 import html
 import smtplib
 import subprocess
+import sys
 from email.message import EmailMessage
+
+import keyring
 
 KEYCHAIN_SERVICE = "jobhunt-smtp"
 
 
 def keychain_password(account: str) -> str | None:
-    proc = subprocess.run(
-        ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-a", account, "-w"],
-        capture_output=True, text=True,
-    )
-    return proc.stdout.strip() if proc.returncode == 0 else None
+    if not account:
+        return None
+    try:
+        return keyring.get_password(KEYCHAIN_SERVICE, account)
+    except Exception:
+        return None
 
 
 def store_password(account: str, password: str) -> None:
-    subprocess.run(
-        ["security", "add-generic-password", "-U", "-s", KEYCHAIN_SERVICE, "-a", account, "-w", password],
-        check=True, capture_output=True,
-    )
+    keyring.set_password(KEYCHAIN_SERVICE, account, password)
 
 
 def email_ready(settings: dict) -> bool:
@@ -94,9 +99,27 @@ def send_test(settings: dict, dashboard_url: str) -> None:
         smtp.send_message(msg)
 
 
-def mac_notification(title: str, message: str) -> None:
-    script = f"display notification {_as(message)} with title {_as(title)} sound name \"Glass\""
-    subprocess.run(["osascript", "-e", script], capture_output=True)
+def desktop_notification(title: str, message: str) -> None:
+    """Best-effort OS notification. Never raises if the platform tool is missing."""
+    try:
+        if sys.platform == "darwin":
+            script = f"display notification {_as(message)} with title {_as(title)} sound name \"Glass\""
+            subprocess.run(["osascript", "-e", script], capture_output=True)
+        elif sys.platform == "win32":
+            try:
+                from winotify import Notification
+
+                Notification(app_id="Job Radar", title=title, msg=message).show()
+            except Exception:
+                pass
+        else:
+            subprocess.run(["notify-send", title, message], capture_output=True)
+    except Exception:
+        pass
+
+
+# Backwards-compatible alias (older code / docs call this "mac_notification").
+mac_notification = desktop_notification
 
 
 def _as(value: str) -> str:

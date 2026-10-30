@@ -65,7 +65,7 @@ def state() -> dict:
     conn.close()
     running = pipeline.STATE["running"]
     # Read the shared log file so runs started from the terminal show progress too.
-    log = pipeline.RUN_LOG.read_text().splitlines()[-250:] if pipeline.RUN_LOG.exists() else []
+    log = pipeline.RUN_LOG.read_text(encoding="utf-8").splitlines()[-250:] if pipeline.RUN_LOG.exists() else []
     next_run = None
     if s["schedule"]["enabled"] and last:
         started = datetime.fromisoformat(last["started_at"])
@@ -183,7 +183,7 @@ class Handler(BaseHTTPRequestHandler):
                 if len(text) < 200:
                     return self._send(400, {"error": "CV text looks too short"})
                 settings_mod.DATA.mkdir(exist_ok=True)
-                settings_mod.CV_TEXT_FILE.write_text(text)
+                settings_mod.CV_TEXT_FILE.write_text(text, encoding="utf-8")
                 return self._send(200, {"chars": len(text)})
             if path == "/api/test_email":
                 notify.send_test(settings_mod.load(), settings_mod.load()["server"]["public_url"])
@@ -195,19 +195,19 @@ class Handler(BaseHTTPRequestHandler):
 
 def _clear_interrupted_runs() -> None:
     """A run cut off by a restart or kill stays 'running' in the database; mark it interrupted."""
-    import fcntl
+    from . import filelock
 
     settings_mod.DATA.mkdir(exist_ok=True)
     with open(settings_mod.DATA / "run.lock", "w") as lock:
         try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+            filelock.acquire(lock)
+        except filelock.LockBusy:
             return  # a run really is in progress (e.g. started from the terminal)
         conn = db.connect()
         conn.execute("UPDATE runs SET status='interrupted', finished_at=? WHERE status='running'", (db.now(),))
         conn.commit()
         conn.close()
-        fcntl.flock(lock, fcntl.LOCK_UN)
+        filelock.release(lock)
 
 
 def serve(port: int = 8765, scheduler: bool = True) -> None:

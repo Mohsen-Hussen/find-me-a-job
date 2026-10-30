@@ -70,7 +70,7 @@ def prefilter(title: str, search: dict, fit: dict | None = None) -> str:
         if fit and focus in fit.get("exclude_role_focus", []) and re.search(pattern, t) and not native:
             return f"{focus.replace('-', ' ').title()}-first title"
     if not re.search(search["title_must_match"], t):
-        return "title is not a mobile role"
+        return "title doesn't match your roles"
     m = re.search(search["title_exclude"], t)
     if m:
         return f"title contains '{m.group(0)}'"

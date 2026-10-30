@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fcntl
 import json
 import threading
 import time
@@ -10,7 +9,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime, timedelta, timezone
 
-from . import db, himalayas, linkedin, notify, rules, scoring, settings as settings_mod
+from . import db, filelock, himalayas, linkedin, notify, rules, scoring, settings as settings_mod
 from .settings import DATA
 
 DASHBOARD_URL = "http://localhost:8765"
@@ -26,7 +25,7 @@ def _logger(echo: bool):
         with _state_lock:
             STATE["log"].append(line)
             del STATE["log"][:-400]
-            with open(RUN_LOG, "a") as fh:
+            with open(RUN_LOG, "a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
         if echo:
             print(line, flush=True)
@@ -197,7 +196,7 @@ def _notify(conn, settings, log, stats) -> None:
         return
     fresh.sort(key=lambda j: -j["assess"]["fit_score"])
     stats["alerted"] = len(fresh)
-    channel = "mac"
+    channel = "desktop"
     if notify.email_ready(settings):
         try:
             notify.send_digest(settings, fresh[:20], settings["server"]["public_url"])
@@ -207,7 +206,7 @@ def _notify(conn, settings, log, stats) -> None:
             log(f"Email failed: {err}")
             return  # retry next run
     top = fresh[0]
-    notify.mac_notification(
+    notify.desktop_notification(
         f"{len(fresh)} new job match{'es' if len(fresh) > 1 else ''}",
         f"[{top['assess']['fit_score']}] {top['title']} — {top['company']}",
     )
@@ -220,10 +219,10 @@ def run(stages=("fetch", "screen", "assess", "notify"), echo=True) -> dict:
     DATA.mkdir(exist_ok=True)
     lock_file = open(DATA / "run.lock", "w")
     try:
-        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
+        filelock.acquire(lock_file)
+    except filelock.LockBusy:
         return {"skipped": "another run is in progress"}
-    RUN_LOG.write_text("")
+    RUN_LOG.write_text("", encoding="utf-8")
     log = _logger(echo)
     with _state_lock:
         STATE.update(running=True, log=[], started=db.now())
@@ -266,6 +265,6 @@ def run(stages=("fetch", "screen", "assess", "notify"), echo=True) -> dict:
         )
         conn.commit()
         conn.close()
-        fcntl.flock(lock_file, fcntl.LOCK_UN)
+        filelock.release(lock_file)
         lock_file.close()
     return {"status": status, **stats}

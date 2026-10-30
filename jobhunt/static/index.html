@@ -228,7 +228,7 @@ const ELIG = {
   yes: ["Open to Egypt", "good"], likely: ["Likely open to Egypt", "good"], unclear: ["Egypt: unclear", "warn"],
   unlikely: ["Egypt: unlikely", "bad"], no: ["Not open to Egypt", "bad"],
 };
-const FOCUS_KIND = { android: "good", ios: "bad" };
+const FOCUS_KIND = { frontend: "good", fullstack: "good", backend: "", mobile: "", other: "" };
 
 function jobChips(j) {
   const s = j.screen;
@@ -321,7 +321,7 @@ function renderJobs(main) {
     <input class="search" type="text" data-filter="q" placeholder="Search title, company…" value="${esc(filters.q)}">
     ${opt("min", [["0", "Any score"], ["50", "Score 50+"], ["65", "Score 65+"], ["75", "Score 75+"], ["85", "Score 85+"]])}
     ${opt("elig", [["all", "Any eligibility"], ["yes", "Open to Egypt"], ["unclear", "Unclear"], ["unlikely", "Unlikely"], ["no", "Not open"]])}
-    ${opt("focus", [["all", "Any focus"], ["android", "Android"], ["cross-platform-native", "Android + iOS"], ["react-native", "React Native"], ["flutter", "Flutter"], ["mobile-general", "Mobile (general)"], ["ios", "iOS"]])}
+    ${opt("focus", [["all", "Any focus"], ["frontend", "Frontend"], ["fullstack", "Full-stack"], ["backend", "Backend"], ["mobile", "Mobile"], ["other", "Other"]])}
     ${opt("source", [["all", "All sources"], ["linkedin", "LinkedIn"], ["himalayas", "Himalayas"]])}
     ${opt("sort", [["score", "Best fit first"], ["new", "Newest first"]])}
   </div>`;
@@ -352,7 +352,6 @@ const SECTIONS = [
       { key: "search.first_run_days", type: "number", label: "First search looks back (days)" },
       { key: "search.max_pages", type: "number", label: "Pages per search (10 jobs each)", help: "Used on the first search; later searches read 1–2 pages since they only need new jobs." },
     ] },
-    { key: "search.include_ios_only_titles", type: "bool", label: "Include iOS-only job titles" },
     { key: "search.title_must_match", type: "text", label: "Title must contain (regular expression)", help: "Titles that don't match are skipped without spending a LinkedIn request or Claude call." },
     { key: "search.title_exclude", type: "text", label: "Skip titles containing (regular expression)" },
   ]],
@@ -376,8 +375,8 @@ const SECTIONS = [
       ["fintech", "Fintech (payments, lending, trading)"], ["banking", "Banks"], ["crypto", "Crypto / web3"], ["dating", "Dating"],
       ["gambling", "Gambling / betting"], ["adtech", "Ad-tech"], ["defense", "Defense"], ["insurance", "Insurance"],
       ["outsourcing-agency", "Outsourcing agencies / body-shops"]] },
-    { key: "fit.exclude_role_focus", type: "multi", label: "Skip roles whose main stack is", help: "Native Android roles that list these as a plus are kept.", options: [
-      ["react-native", "React Native"], ["flutter", "Flutter"], ["ios", "iOS"], ["cross-platform-native", "Native iOS + Android equally"]] },
+    { key: "fit.exclude_role_focus", type: "multi", label: "Skip roles whose main focus is", help: "Full-stack roles are kept even if they touch these.", options: [
+      ["backend", "Backend-only"], ["mobile", "Mobile (React Native / native)"], ["other", "Other / unrelated"]] },
     { key: "fit.blocked_companies", type: "lines", label: "Blocked companies", help: "One per line. Also use “Block company” on any job card." },
     { row: [
       { key: "fit.min_eligibility", type: "select", label: "Show jobs where working from Egypt is at least", options: [["yes", "Yes — explicitly open"], ["likely", "Likely"], ["unclear", "Unclear"], ["unlikely", "Unlikely (US-posted, no restriction stated)"], ["no", "Show everything"]] },

@@ -11,7 +11,7 @@ def screen(**overrides):
         "relevant": True, "remote_type": "remote", "egypt_eligible": "yes", "eligibility_evidence": "",
         "company_hq": "", "engagement": "full-time", "pay_text": "", "pay_min_usd_year": None,
         "pay_max_usd_year": None, "tz_text": "", "tz_zone": "none", "tz_window_start": None,
-        "tz_window_end": None, "tz_overlap_hours": None, "role_focus": "android", "seniority": "senior",
+        "tz_window_end": None, "tz_overlap_hours": None, "role_focus": "frontend", "seniority": "senior",
     }
     return {**base, **overrides}
 
@@ -20,16 +20,21 @@ def job(**screen_overrides):
     return {"prefilter": "ok", "closed": 0, "screen": screen(**screen_overrides)}
 
 
+def with_fit(**fit_overrides):
+    return {**S, "fit": {**S["fit"], **fit_overrides}}
+
+
 class Prefilter(unittest.TestCase):
     def test_titles(self):
         p = lambda t: rules.prefilter(t, S["search"])
-        self.assertEqual(p("Senior Android Engineer"), "ok")
-        self.assertEqual(p("Mobile Team Lead (Flutter)"), "ok")
-        self.assertEqual(p("Software Engineer (Native SDKs)"), "ok")
-        self.assertEqual(p("Senior iOS Developer"), "iOS-only title")
-        self.assertEqual(p("iOS / Android Engineer"), "ok")
-        self.assertIn("junior", p("Junior Android Developer"))
-        self.assertEqual(p("Senior Backend Engineer"), "title is not a mobile role")
+        self.assertEqual(p("Senior Frontend Developer"), "ok")
+        self.assertEqual(p("Frontend Team Lead"), "ok")
+        self.assertEqual(p("Senior Full Stack Engineer (React, Node.js)"), "ok")
+        self.assertEqual(p("React Native Engineer"), "ok")
+        self.assertEqual(p("Senior Angular Developer"), "ok")
+        self.assertIn("junior", p("Junior Frontend Developer"))
+        self.assertEqual(p("Data Engineer"), "title doesn't match your roles")
+        self.assertEqual(p("Senior Backend Engineer"), "title doesn't match your roles")
 
 
 class Evaluate(unittest.TestCase):
@@ -42,15 +47,15 @@ class Evaluate(unittest.TestCase):
         self.assertEqual(rules.evaluate(job(egypt_eligible="no"), S)["status"], "excluded")
 
     def test_pay(self):
-        self.assertEqual(rules.evaluate(job(pay_max_usd_year=90000), S)["status"], "excluded")
-        self.assertEqual(rules.evaluate(job(pay_max_usd_year=150000), S)["status"], "match")
-        flag = {**S, "fit": {**S["fit"], "below_min_pay": "flag"}}
-        result = rules.evaluate(job(pay_max_usd_year=90000), flag)
+        self.assertEqual(rules.evaluate(job(pay_max_usd_year=15000), S)["status"], "excluded")
+        self.assertEqual(rules.evaluate(job(pay_max_usd_year=50000), S)["status"], "match")
+        result = rules.evaluate(job(pay_max_usd_year=15000), with_fit(below_min_pay="flag"))
         self.assertEqual(result["status"], "match")
         self.assertTrue(result["flags"])
 
     def test_engagement(self):
-        self.assertEqual(rules.evaluate(job(engagement="part-time"), S)["status"], "excluded")
+        self.assertEqual(rules.evaluate(job(engagement="contract"), S)["status"], "excluded")
+        self.assertEqual(rules.evaluate(job(engagement="part-time"), S)["status"], "match")
         self.assertEqual(rules.evaluate(job(engagement="unclear"), S)["status"], "match")
 
     def test_timezone_rule(self):
@@ -59,27 +64,27 @@ class Evaluate(unittest.TestCase):
 
 
 class Preferences(unittest.TestCase):
-    def test_industries_and_companies(self):
+    def test_industries(self):
         self.assertEqual(rules.evaluate(job(industries=["crypto", "fintech"]), S)["status"], "excluded")
+        self.assertEqual(rules.evaluate(job(industries=["gambling"]), S)["status"], "excluded")
+        self.assertEqual(rules.evaluate(job(industries=["alcohol"]), S)["status"], "excluded")
         self.assertEqual(rules.evaluate(job(industries=["travel"]), S)["status"], "match")
-        deed = {**job(), "company": "Deed"}
-        self.assertEqual(rules.evaluate(deed, S)["status"], "excluded")
-        indeed = {**job(), "company": "Indeed"}
-        self.assertEqual(rules.evaluate(indeed, S)["status"], "match")
+
+    def test_blocked_companies(self):
+        blocked = with_fit(blocked_companies=["Acme"])
+        self.assertEqual(rules.evaluate({**job(), "company": "Acme"}, blocked)["status"], "excluded")
+        self.assertEqual(rules.evaluate({**job(), "company": "Globex"}, blocked)["status"], "match")
 
 
 class RoleFocus(unittest.TestCase):
-    def test_cross_platform_first_roles_dropped(self):
-        self.assertEqual(rules.evaluate(job(role_focus="react-native"), S)["status"], "excluded")
-        self.assertEqual(rules.evaluate(job(role_focus="flutter"), S)["status"], "excluded")
-        self.assertEqual(rules.evaluate(job(role_focus="android"), S)["status"], "match")
-
-    def test_titles(self):
-        p = lambda t: rules.prefilter(t, S["search"], S["fit"])
-        self.assertEqual(p("Senior Flutter Developer"), "Flutter-first title")
-        self.assertEqual(p("React Native Engineer"), "React Native-first title")
-        self.assertEqual(p("Senior Android Engineer (Kotlin, Flutter a plus)"), "ok")
-        self.assertEqual(p("Senior Mobile Engineer"), "ok")
+    def test_focus_exclusion(self):
+        # No focus excluded by default — all engineering focuses pass.
+        self.assertEqual(rules.evaluate(job(role_focus="backend"), S)["status"], "match")
+        self.assertEqual(rules.evaluate(job(role_focus="mobile"), S)["status"], "match")
+        # When a focus is excluded, matching jobs drop and others stay.
+        no_backend = with_fit(exclude_role_focus=["backend"])
+        self.assertEqual(rules.evaluate(job(role_focus="backend"), no_backend)["status"], "excluded")
+        self.assertEqual(rules.evaluate(job(role_focus="frontend"), no_backend)["status"], "match")
 
 
 class Pay(unittest.TestCase):
@@ -95,7 +100,7 @@ class Pay(unittest.TestCase):
         self.assertIsNone(rules.pay_from_text("Based on experience"))
 
     def test_rule_uses_text_when_numbers_missing(self):
-        self.assertEqual(rules.evaluate(job(pay_text="Gross annual salary range: €45,000–€65,000"), S)["status"], "excluded")
+        self.assertEqual(rules.evaluate(job(pay_text="Monthly salary: $1,500 per month"), S)["status"], "excluded")
         self.assertEqual(rules.evaluate(job(pay_text="$140k-$170k"), S)["status"], "match")
 
 

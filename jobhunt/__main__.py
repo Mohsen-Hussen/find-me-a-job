@@ -6,15 +6,19 @@ import argparse
 import getpass
 import json
 import os
-import plistlib
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from . import settings as settings_mod
 
-LABEL = "com.yahia.jobhunt"
-PLIST = Path.home() / "Library/LaunchAgents" / f"{LABEL}.plist"
+# Background-service identifiers per OS.
+MAC_LABEL = "com.jobhunt.radar"
+MAC_PLIST = Path.home() / "Library/LaunchAgents" / f"{MAC_LABEL}.plist"
+WIN_TASK = "JobRadar"
+LINUX_UNIT = "jobhunt.service"
+LINUX_UNIT_PATH = Path.home() / ".config/systemd/user" / LINUX_UNIT
 
 
 def cmd_run(args) -> None:
@@ -46,18 +50,31 @@ def cmd_email_setup(args) -> None:
     notify.store_password(user, password)
     s["email"].update(smtp_user=user, to=to)
     settings_mod.save(s)
-    print("Saved. The password is in your macOS Keychain (service 'jobhunt-smtp'), not in any file.")
+    print("Saved. The password is in your OS credential store (service 'jobhunt-smtp'), not in any file.")
 
 
-def cmd_install(args) -> None:
-    uv = subprocess.run(["which", "uv"], capture_output=True, text=True).stdout.strip() or "/opt/homebrew/bin/uv"
-    root = settings_mod.ROOT
-    PLIST.parent.mkdir(parents=True, exist_ok=True)
+def _uv_path() -> str:
+    found = shutil.which("uv")
+    if found:
+        return found
+    name = "uv.exe" if sys.platform == "win32" else "uv"
+    local = Path.home() / ".local" / "bin" / name
+    if local.exists():
+        return str(local)
+    return "uv"  # assume it's on PATH at service-start time
+
+
+# ---------- background service: install / uninstall per OS ----------
+
+def _install_mac(uv: str, root: Path) -> None:
+    import plistlib
+
+    MAC_PLIST.parent.mkdir(parents=True, exist_ok=True)
     path = ":".join(
         [str(Path.home() / ".local/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
     )
     plist = {
-        "Label": LABEL,
+        "Label": MAC_LABEL,
         "ProgramArguments": [uv, "run", "--project", str(root), "python", "-m", "jobhunt", "serve"],
         "WorkingDirectory": str(root),
         "RunAtLoad": True,
@@ -66,16 +83,92 @@ def cmd_install(args) -> None:
         "StandardOutPath": str(settings_mod.DATA / "server.log"),
         "StandardErrorPath": str(settings_mod.DATA / "server.log"),
     }
-    with open(PLIST, "wb") as fh:
+    with open(MAC_PLIST, "wb") as fh:
         plistlib.dump(plist, fh)
-    subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}", str(PLIST)], capture_output=True)
-    subprocess.run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(PLIST)], check=True)
-    print(f"Installed {PLIST}. Dashboard: http://localhost:8765 (starts at login, searches on schedule).")
+    subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}", str(MAC_PLIST)], capture_output=True)
+    subprocess.run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(MAC_PLIST)], check=True)
+    print(f"Installed {MAC_PLIST}. Dashboard: http://localhost:8765 (starts at login, searches on schedule).")
+
+
+def _install_windows(uv: str, root: Path) -> None:
+    data = settings_mod.DATA
+    data.mkdir(exist_ok=True)
+    log = data / "server.log"
+    # A .bat runs the server; a .vbs launches the .bat with no console window.
+    bat = data / "serve.bat"
+    bat.write_text(
+        "@echo off\r\n"
+        f'cd /d "{root}"\r\n'
+        f'"{uv}" run python -m jobhunt serve >> "{log}" 2>&1\r\n'
+    )
+    vbs = data / "serve.vbs"
+    vbs.write_text(f'CreateObject("Wscript.Shell").Run "cmd /c ""{bat}""", 0, False\r\n')
+    # Logon task so it starts whenever this user signs in.
+    subprocess.run(
+        ["schtasks", "/Create", "/TN", WIN_TASK, "/SC", "ONLOGON", "/RL", "LIMITED",
+         "/TR", f'wscript "{vbs}"', "/F"],
+        check=True, capture_output=True, text=True,
+    )
+    subprocess.run(["schtasks", "/Run", "/TN", WIN_TASK], capture_output=True, text=True)
+    print(f"Installed Task Scheduler task '{WIN_TASK}' (starts at login) and started it now.")
+    print("Dashboard: http://localhost:8765")
+
+
+def _install_linux(uv: str, root: Path) -> None:
+    LINUX_UNIT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LINUX_UNIT_PATH.write_text(
+        "[Unit]\n"
+        "Description=Job Radar dashboard and scheduler\n\n"
+        "[Service]\n"
+        f"WorkingDirectory={root}\n"
+        f"ExecStart={uv} run python -m jobhunt serve\n"
+        "Restart=always\n"
+        f"StandardOutput=append:{settings_mod.DATA / 'server.log'}\n"
+        f"StandardError=append:{settings_mod.DATA / 'server.log'}\n\n"
+        "[Install]\n"
+        "WantedBy=default.target\n"
+    )
+    subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
+    subprocess.run(["systemctl", "--user", "enable", "--now", LINUX_UNIT], check=True)
+    print(f"Installed {LINUX_UNIT_PATH} (starts at login, restarts on crash). Dashboard: http://localhost:8765")
+    print("Tip: `loginctl enable-linger $USER` keeps it running when you're logged out.")
+
+
+def cmd_install(args) -> None:
+    uv, root = _uv_path(), settings_mod.ROOT
+    if sys.platform == "darwin":
+        _install_mac(uv, root)
+    elif sys.platform == "win32":
+        _install_windows(uv, root)
+    else:
+        _install_linux(uv, root)
+
+
+def _uninstall_mac() -> None:
+    subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}", str(MAC_PLIST)], capture_output=True)
+    MAC_PLIST.unlink(missing_ok=True)
+
+
+def _uninstall_windows() -> None:
+    subprocess.run(["schtasks", "/End", "/TN", WIN_TASK], capture_output=True, text=True)
+    subprocess.run(["schtasks", "/Delete", "/TN", WIN_TASK, "/F"], capture_output=True, text=True)
+    for leftover in ("serve.bat", "serve.vbs"):
+        (settings_mod.DATA / leftover).unlink(missing_ok=True)
+
+
+def _uninstall_linux() -> None:
+    subprocess.run(["systemctl", "--user", "disable", "--now", LINUX_UNIT], capture_output=True)
+    LINUX_UNIT_PATH.unlink(missing_ok=True)
+    subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
 
 
 def cmd_uninstall(args) -> None:
-    subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}", str(PLIST)], capture_output=True)
-    PLIST.unlink(missing_ok=True)
+    if sys.platform == "darwin":
+        _uninstall_mac()
+    elif sys.platform == "win32":
+        _uninstall_windows()
+    else:
+        _uninstall_linux()
     print("Removed the background service.")
 
 
@@ -92,7 +185,7 @@ def main() -> None:
     p = sub.add_parser("cv", help="load a CV PDF")
     p.add_argument("pdf")
     p.set_defaults(func=cmd_cv)
-    sub.add_parser("email-setup", help="store Gmail app password in the Keychain").set_defaults(func=cmd_email_setup)
+    sub.add_parser("email-setup", help="store Gmail app password in the OS credential store").set_defaults(func=cmd_email_setup)
     sub.add_parser("install", help="run dashboard + scheduler in the background at login").set_defaults(func=cmd_install)
     sub.add_parser("uninstall", help="remove the background service").set_defaults(func=cmd_uninstall)
     args = parser.parse_args()
