@@ -176,9 +176,14 @@ def ask_claude(system: str, prompt: str, schema: dict, model: str, effort: str =
         "--system-prompt", system,
     ]
     env = {**os.environ, "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
-    token = claude_oauth_token()
-    if token:
-        env["CLAUDE_CODE_OAUTH_TOKEN"] = token
+    # By default use the CLI's own login session (`claude /login`). A stored
+    # long-lived token is opt-in via JOBHUNT_USE_STORED_TOKEN, because on some
+    # subscription accounts `setup-token` tokens are rejected (HTTP 400) by the
+    # API while an interactive login works.
+    if os.environ.get("JOBHUNT_USE_STORED_TOKEN"):
+        token = claude_oauth_token()
+        if token:
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = token
     proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout, env=env)
     if proc.returncode != 0:
