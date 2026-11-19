@@ -8,6 +8,7 @@ against the CV.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -15,6 +16,26 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+TOKEN_SERVICE = "jobhunt-claude"  # keyring service holding the Claude OAuth token
+
+
+@functools.lru_cache(maxsize=1)
+def claude_oauth_token() -> str | None:
+    """A long-lived token from `claude setup-token`, stored via `jobhunt set-token`.
+
+    Returns None if the environment already carries one (don't override it) or
+    none is stored. `claude -p` needs CLAUDE_CODE_OAUTH_TOKEN when the CLI's own
+    OAuth session isn't usable (e.g. it expired, or the server runs headless).
+    """
+    if os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"):
+        return None
+    try:
+        import keyring
+
+        return keyring.get_password(TOKEN_SERVICE, "oauth_token")
+    except Exception:
+        return None
 
 ELIG = ["yes", "likely", "unclear", "unlikely", "no"]
 RUBRIC_VERSION = "3"
@@ -155,6 +176,9 @@ def ask_claude(system: str, prompt: str, schema: dict, model: str, effort: str =
         "--system-prompt", system,
     ]
     env = {**os.environ, "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"}
+    token = claude_oauth_token()
+    if token:
+        env["CLAUDE_CODE_OAUTH_TOKEN"] = token
     proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout, env=env)
     if proc.returncode != 0:

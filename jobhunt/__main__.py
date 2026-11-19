@@ -53,6 +53,20 @@ def cmd_email_setup(args) -> None:
     print("Saved. The password is in your OS credential store (service 'jobhunt-smtp'), not in any file.")
 
 
+def cmd_set_token(args) -> None:
+    import keyring
+
+    from .scoring import TOKEN_SERVICE
+
+    print("Create a long-lived token first with:  claude setup-token")
+    token = getpass.getpass("Paste your Claude token (hidden): ").strip()
+    if not token:
+        print("No token entered; nothing changed.")
+        return
+    keyring.set_password(TOKEN_SERVICE, "oauth_token", token)
+    print("Stored the token in your OS credential store. Restart the dashboard (serve) to use it.")
+
+
 def _uv_path() -> str:
     found = shutil.which("uv")
     if found:
@@ -192,6 +206,7 @@ def main() -> None:
     p.add_argument("pdf")
     p.set_defaults(func=cmd_cv)
     sub.add_parser("email-setup", help="store Gmail app password in the OS credential store").set_defaults(func=cmd_email_setup)
+    sub.add_parser("set-token", help="store a Claude long-lived token (claude setup-token)").set_defaults(func=cmd_set_token)
     sub.add_parser("install", help="run dashboard + scheduler in the background at login").set_defaults(func=cmd_install)
     sub.add_parser("uninstall", help="remove the background service").set_defaults(func=cmd_uninstall)
     args = parser.parse_args()

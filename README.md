@@ -11,6 +11,7 @@ uv run python -m jobhunt install   # keep the dashboard + schedule running in th
 uv run python -m jobhunt uninstall
 uv run python -m jobhunt cv ~/Downloads/new-cv.pdf
 uv run python -m jobhunt email-setup   # Gmail app password → OS credential store
+uv run python -m jobhunt set-token     # store a Claude long-lived token (claude setup-token)
 ```
 
 Everything else (titles, places, hours, pay, engagement, schedule, models) is in the dashboard's **Settings** tab.
