@@ -110,6 +110,9 @@ def _claude_invocation() -> list[str]:
     inside the package, so prefer that. On macOS/Linux the launcher on PATH runs
     as-is.
     """
+    override = os.environ.get("JOBHUNT_CLAUDE_BIN")
+    if override and Path(override).exists():
+        return [override]
     cmd = shutil.which("claude") or shutil.which("claude.cmd")
     bases: list[Path] = []
     if cmd:
@@ -119,10 +122,17 @@ def _claude_invocation() -> list[str]:
         bases.append(Path(node).parent)
     if sys.platform == "win32":
         bases.append(Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "nodejs")
+        # nvm-windows keeps each Node version (and its global packages) in its own
+        # folder, so a global claude may live under a version other than the active
+        # one — and the server, launched from Startup, may not have it on PATH.
+        for root in (os.environ.get("NVM_HOME"), Path(os.environ.get("APPDATA", "")) / "nvm"):
+            root = Path(root) if root else None
+            if root and root.exists():
+                bases.extend(sorted((p for p in root.iterdir() if p.is_dir()), reverse=True))
+    rel = Path("node_modules") / "@anthropic-ai" / "claude-code" / "bin" / "claude.exe"
     for base in bases:
-        exe = base / "node_modules" / "@anthropic-ai" / "claude-code" / "bin" / "claude.exe"
-        if exe.exists():
-            return [str(exe)]
+        if (base / rel).exists():
+            return [str(base / rel)]
     if cmd and not cmd.lower().endswith((".cmd", ".bat", ".ps1")):
         return [cmd]  # a real executable or a POSIX launcher
     if cmd:
