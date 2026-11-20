@@ -259,7 +259,7 @@ function jobCard(j) {
   const a = j.assess;
   const score = a ? a.fit_score : "–";
   const cls = a ? (a.fit_score >= 80 ? "s-hi" : a.fit_score >= 65 ? "s-mid" : "") : "";
-  const src = j.source === "himalayas" ? "via Himalayas" : "LinkedIn";
+  const src = j.source === "himalayas" ? "via Himalayas" : j.source === "seek" ? "via Seek NZ" : "LinkedIn";
   const posted = j.posted_date ? `posted ${esc(j.posted_date)}` : "";
   const reasons = j.eval.status === "excluded" ? `<div class="reason">${j.eval.reasons.map(esc).join(" · ")}</div>` : "";
   let body = "";
@@ -322,7 +322,7 @@ function renderJobs(main) {
     ${opt("min", [["0", "Any score"], ["50", "Score 50+"], ["65", "Score 65+"], ["75", "Score 75+"], ["85", "Score 85+"]])}
     ${opt("elig", [["all", "Any eligibility"], ["yes", "Open to Egypt"], ["unclear", "Unclear"], ["unlikely", "Unlikely"], ["no", "Not open"]])}
     ${opt("focus", [["all", "Any focus"], ["frontend", "Frontend"], ["fullstack", "Full-stack"], ["backend", "Backend"], ["mobile", "Mobile"], ["other", "Other"]])}
-    ${opt("source", [["all", "All sources"], ["linkedin", "LinkedIn"], ["himalayas", "Himalayas"]])}
+    ${opt("source", [["all", "All sources"], ["linkedin", "LinkedIn"], ["himalayas", "Himalayas"], ["seek", "Seek NZ"]])}
     ${opt("sort", [["score", "Best fit first"], ["new", "Newest first"]])}
   </div>`;
   const extra = tab === "excluded"
@@ -359,6 +359,8 @@ const SECTIONS = [
     { key: "sources.linkedin", type: "bool", label: "LinkedIn (logged out — never touches your account)" },
     { key: "sources.himalayas", type: "bool", label: "Himalayas remote-jobs feed (free; tags which countries can apply)" },
     { key: "sources.himalayas_country", type: "text", label: "Himalayas: only jobs open to this country" },
+    { key: "sources.seek", type: "bool", label: "Seek NZ (New Zealand board — mostly onsite/hybrid, needs NZ work rights)" },
+    { key: "sources.seek_where", type: "text", label: "Seek NZ: where to search (e.g. All New Zealand, Auckland)" },
   ]],
   ["Fit rules", [
     { row: [

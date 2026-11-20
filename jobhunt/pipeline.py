@@ -9,7 +9,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime, timedelta, timezone
 
-from . import db, filelock, himalayas, linkedin, notify, rules, scoring, settings as settings_mod
+from . import db, filelock, himalayas, linkedin, notify, rules, scoring, seek, settings as settings_mod
 from .settings import DATA
 
 DASHBOARD_URL = "http://localhost:8765"
@@ -103,6 +103,39 @@ def _fetch_himalayas(conn, settings, log, stats) -> None:
         stats["new"] += new_here
         log(f"  {term} @ Himalayas: {new_here} new")
     db.kv_set(conn, "himalayas_last_fetch", started)
+
+
+def _fetch_seek(conn, settings, log, stats) -> None:
+    s = settings["search"]
+    where = settings["sources"].get("seek_where") or "All New Zealand"
+    seconds, _ = _window(conn, settings, "seek_last_fetch")
+    started = db.now()
+    since = datetime.now(timezone.utc) - timedelta(seconds=seconds)
+    log(f"Seek NZ: {len(s['terms'])} terms, jobs in {where}")
+    for term in s["terms"]:
+        new_here = 0
+        for card in seek.search(term, where, since, int(s["max_pages"]), log):
+            stats["cards"] += 1
+            prefilter = rules.prefilter(card["title"], s, settings["fit"])
+            if not db.upsert_card(conn, card, f"{term} @ Seek NZ", prefilter):
+                continue
+            new_here += 1
+            # Only jobs whose title passes get screened, so only they are worth
+            # the extra description request.
+            description = card["description"]
+            if prefilter == "ok":
+                full = seek.detail(card["seek_id"], log)
+                if full:
+                    description = card["header"] + full
+                time.sleep(1.0)  # polite pacing on the detail calls
+            db.save_detail(conn, card["id"], {
+                "description": description, "criteria": card["criteria"], "applicants": "",
+                "salary_text": card["salary_text"], "detail_location": card["location"], "closed": 0,
+            })
+        conn.commit()
+        stats["new"] += new_here
+        log(f"  {term} @ Seek NZ: {new_here} new")
+    db.kv_set(conn, "seek_last_fetch", started)
 
 
 def _screen_one(job_id: str, settings: dict, cv: str, key: str, log, stats) -> None:
@@ -237,6 +270,8 @@ def run(stages=("fetch", "screen", "assess", "notify"), echo=True) -> dict:
         client = linkedin.Client(log=log)
         if "fetch" in stages and settings["sources"].get("himalayas"):
             _fetch_himalayas(conn, settings, log, stats)
+        if "fetch" in stages and settings["sources"].get("seek"):
+            _fetch_seek(conn, settings, log, stats)
         if "fetch" in stages and settings["sources"].get("linkedin"):
             try:
                 _fetch_linkedin(conn, settings, client, log, stats)

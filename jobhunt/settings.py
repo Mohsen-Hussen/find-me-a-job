@@ -44,6 +44,8 @@ DEFAULTS: dict = {
         "linkedin": True,
         "himalayas": True,
         "himalayas_country": "Egypt",
+        "seek": True,
+        "seek_where": "All New Zealand",
     },
     "fit": {
         "work_window_start": "09:00",
