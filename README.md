@@ -1,6 +1,6 @@
 # Job Radar
 
-Searches LinkedIn and Himalayas for your target roles, has Claude read every listing, and shows the ones you can actually take from Egypt: remote, open to your country, workable hours, acceptable pay and engagement type, scored against your CV. New strong matches arrive by email or Mac notification.
+Searches LinkedIn, Himalayas and Seek NZ for your target roles, has Claude read every listing, and shows the ones you can actually take from Egypt: remote, open to your country, workable hours, acceptable pay and engagement type, scored against your CV. New strong matches arrive by email or desktop notification.
 
 ## Use it
 
@@ -16,13 +16,13 @@ uv run python -m jobhunt set-token     # store a Claude long-lived token (claude
 
 Everything else (titles, places, hours, pay, engagement, schedule, models) is in the dashboard's **Settings** tab.
 
-Runs on macOS, Windows and Linux (`install`/`uninstall` use a LaunchAgent, a Task Scheduler logon task, or a systemd user service respectively). On Windows, open a fresh terminal after installing `uv` so it's on your PATH.
+Runs on macOS, Windows and Linux (`install`/`uninstall` use a LaunchAgent, a Startup-folder entry, or a systemd user service respectively). On Windows, open a fresh terminal after installing `uv` so it's on your PATH.
 
 **Setting it up for yourself?** It's currently configured for one person (a frontend / full-stack engineer in Egypt). Ask Claude Code to follow [docs/setup-runbook.md](docs/setup-runbook.md): it interviews you, makes the code fit you, and gets it running on your OS.
 
 ## How a run works
 
-1. **Search.** LinkedIn's logged-out job search covers every title × place. It searches back to the last run plus an hour of overlap; the first run searches back 7 days. Himalayas' free API returns remote jobs open to Egypt. No LinkedIn login is used, so your account is never involved.
+1. **Search.** LinkedIn's logged-out job search covers every title × place. It searches back to the last run plus an hour of overlap; the first run searches back 7 days. Himalayas' free API returns remote jobs open to Egypt. Seek NZ's public API adds New Zealand listings (mostly onsite/hybrid and needing NZ work rights — Claude's eligibility screen filters those out, so only the rare role open to remote candidates abroad survives). No login is used for any source, so your accounts are never involved.
 2. **Skip by title.** Titles that don't match your roles are skipped before any request or Claude call. So are titles in your exclude list.
 3. **Read** (Claude Haiku, low effort). Claude reads every remaining listing and extracts facts:
    - whether someone in Egypt can take it (`yes / likely / unclear / unlikely / no`), quoting its evidence;
@@ -45,6 +45,7 @@ Claude runs through `claude -p` on your Claude subscription, so there's no API k
 - `data/` (git-ignored) holds `jobs.db`, `settings.json`, `cv.txt`/`cv.pdf` and the logs.
 - `jobhunt/linkedin.py`: LinkedIn guest endpoints, paced at 4–7 s per request with back-off on HTTP 429.
 - `jobhunt/himalayas.py`: Himalayas API. Their terms ask you to credit Himalayas and link back to each listing.
+- `jobhunt/seek.py`: Seek New Zealand's public search API, plus its GraphQL endpoint for the full job description (fetched only for titles that pass your role filter). No Seek login.
 - `jobhunt/scoring.py`: Claude prompts and JSON schemas.
 - `jobhunt/rules.py`: eligibility, time zone, pay and engagement rules.
 - `jobhunt/web.py` and `jobhunt/static/index.html`: the dashboard. It only listens on 127.0.0.1.
@@ -54,3 +55,4 @@ Claude runs through `claude -p` on your Claude subscription, so there's no API k
 - LinkedIn's terms forbid automated access, even logged out. Keep volume personal-scale; LinkedIn answers too many requests with HTTP 429 for a while. Don't turn this into a service for other people: that also isn't allowed on a personal Claude subscription and would need API keys.
 - LinkedIn ignores its remote, experience and job-type filters for logged-out searches, so Claude decides those from each listing's text.
 - Eligibility tags, even Himalayas' own, are sometimes wrong. Check the "Who can apply" quote before you apply.
+- Seek NZ is a New Zealand board: most roles are onsite or hybrid and need NZ work rights, so few reach your match list from abroad. It's there for the occasional listing that's genuinely open to remote candidates overseas. Keep volume personal-scale here too.
